@@ -598,14 +598,172 @@ const Historial=({historial})=>{
   );
 };
 
+// ═══════════ GESTIÓN DE FÓRMULAS ═══════════
+const formulaVacia=()=>({id:0,nombre:"",categoria:"",descripcion:"",cantidadBase:30,unidadBase:"g",ingredientes:[{apiId:"",nombre:"",cantidad:"",unidad:"g"}]});
+
+const GestionFormulas=({formulas,setFormulas,apis})=>{
+  const [modal,setModal]=useState(null); // null | "editar" | "nuevo"
+  const [form,setForm]=useState(formulaVacia());
+  const [confirmarEliminar,setConfirmarEliminar]=useState(null);
+
+  const abrirNueva=()=>{setForm({...formulaVacia(),id:Math.max(...formulas.map(f=>f.id),0)+1});setModal("nuevo");};
+  const abrirEditar=(f)=>{setForm(JSON.parse(JSON.stringify(f)));setModal("editar");};
+
+  const updIng=(i,campo,val)=>{
+    const ings=[...form.ingredientes];
+    ings[i]={...ings[i],[campo]:val};
+    if(campo==="apiId"){const api=apis.find(a=>a.id===parseInt(val));ings[i].nombre=api?.nombre||"";ings[i].unidad=api?.unidad||"g";}
+    setForm({...form,ingredientes:ings});
+  };
+  const addIng=()=>setForm({...form,ingredientes:[...form.ingredientes,{apiId:"",nombre:"",cantidad:"",unidad:"g"}]});
+  const remIng=(i)=>form.ingredientes.length>1&&setForm({...form,ingredientes:form.ingredientes.filter((_,x)=>x!==i)});
+
+  const guardar=()=>{
+    const limpio={...form,cantidadBase:parseFloat(form.cantidadBase)||30,
+      ingredientes:form.ingredientes.filter(i=>i.apiId&&i.cantidad).map(i=>({apiId:parseInt(i.apiId),nombre:i.nombre,cantidad:parseFloat(i.cantidad),unidad:i.unidad}))};
+    if(!limpio.nombre||limpio.ingredientes.length===0)return;
+    if(modal==="nuevo"){setFormulas([...formulas,limpio]);}
+    else{setFormulas(formulas.map(f=>f.id===limpio.id?limpio:f));}
+    setModal(null);
+  };
+
+  const eliminar=(id)=>{setFormulas(formulas.filter(f=>f.id!==id));setConfirmarEliminar(null);};
+
+  const cats=[...new Set(formulas.map(f=>f.categoria))];
+
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+        <div><h2 style={{margin:0,fontSize:24,fontWeight:700,color:C.dark,fontFamily:"sans-serif"}}>📝 Gestión de Fórmulas</h2><p style={{margin:"6px 0 0",fontSize:14,color:C.muted,fontFamily:"sans-serif"}}>{formulas.length} fórmulas magistrales · Edita, crea o elimina</p></div>
+        <Btn onClick={abrirNueva} color={C.primary} size="lg">+ Nueva Fórmula</Btn>
+      </div>
+
+      {[...new Set(formulas.map(f=>f.categoria))].map(cat=>(
+        <div key={cat} style={{marginBottom:28}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:12,fontFamily:"sans-serif",display:"flex",alignItems:"center",gap:10}}>
+            {cat}<div style={{flex:1,height:1,background:C.border}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:14}}>
+            {formulas.filter(f=>f.categoria===cat).map(f=>(
+              <Card key={f.id} style={{padding:18,position:"relative"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                  <div style={{flex:1,marginRight:8}}>
+                    <div style={{fontSize:14,fontWeight:700,color:C.dark,fontFamily:"sans-serif",marginBottom:4}}>{f.nombre}</div>
+                    <div style={{fontSize:12,color:C.muted,fontFamily:"sans-serif"}}>{f.descripcion}</div>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <Btn onClick={()=>abrirEditar(f)} size="sm" color={C.primary} variant="outline">✏️ Editar</Btn>
+                    <Btn onClick={()=>setConfirmarEliminar(f)} size="sm" color={C.red} variant="outline">🗑️</Btn>
+                  </div>
+                </div>
+                <div style={{padding:"8px 12px",background:C.primaryLight,borderRadius:8,marginBottom:10,fontSize:12,color:C.primary,fontFamily:"sans-serif"}}>
+                  Base: <strong>{f.cantidadBase} {f.unidadBase}</strong>
+                </div>
+                <div>
+                  {f.ingredientes.map((ing,i)=>(
+                    <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:i<f.ingredientes.length-1?`1px solid ${C.border}`:"none",fontSize:12,fontFamily:"sans-serif"}}>
+                      <span style={{color:C.darkMid,fontWeight:500}}>{ing.nombre}</span>
+                      <span style={{color:C.primary,fontWeight:700}}>{ing.cantidad} {ing.unidad}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{marginTop:10,fontSize:11,color:C.muted,fontFamily:"sans-serif",textAlign:"right"}}>
+                  Costo est: <span style={{color:C.gold,fontWeight:700}}>${f.ingredientes.reduce((acc,ing)=>{const api=apis.find(a=>a.id===ing.apiId);return acc+(ing.cantidad*(api?.costo||0));},0).toFixed(2)}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* MODAL EDITAR / NUEVO */}
+      {modal&&(
+        <Modal onClose={()=>setModal(null)} wide>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div style={{fontSize:18,fontWeight:700,color:C.dark,fontFamily:"sans-serif"}}>{modal==="nuevo"?"➕ Nueva Fórmula":"✏️ Editar Fórmula"}</div>
+            <button onClick={()=>setModal(null)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:C.muted}}>✕</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <div style={{gridColumn:"1/-1"}}><FInput label="Nombre de la fórmula *" value={form.nombre} onChange={v=>setForm({...form,nombre:v})} placeholder="Ej: Crema Tretinoína 0.025%" required/></div>
+            <div>
+              <SLabel>Categoría</SLabel>
+              <input list="cats-list" value={form.categoria} onChange={e=>setForm({...form,categoria:e.target.value})} placeholder="Dermatológico, Hormonal..."
+                style={{width:"100%",padding:"10px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.dark,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"sans-serif",marginBottom:14}}
+                onFocus={e=>e.target.style.borderColor=C.primary} onBlur={e=>e.target.style.borderColor=C.border}/>
+              <datalist id="cats-list">{cats.map(c=><option key={c} value={c}/>)}</datalist>
+            </div>
+            <FInput label="Descripción" value={form.descripcion} onChange={v=>setForm({...form,descripcion:v})} placeholder="Breve descripción del uso"/>
+            <div>
+              <SLabel>Cantidad base *</SLabel>
+              <input type="number" value={form.cantidadBase} onChange={e=>setForm({...form,cantidadBase:e.target.value})} placeholder="30"
+                style={{width:"100%",padding:"10px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.dark,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"sans-serif",marginBottom:14}}/>
+            </div>
+            <div>
+              <SLabel>Unidad base</SLabel>
+              <select value={form.unidadBase} onChange={e=>setForm({...form,unidadBase:e.target.value})} style={{width:"100%",padding:"11px 14px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.dark,fontSize:14,outline:"none",fontFamily:"sans-serif",marginBottom:14}}>
+                {["g","ml","cáps","oz","u"].map(u=><option key={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:16,marginBottom:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <SLabel>Ingredientes *</SLabel>
+              <Btn onClick={addIng} size="sm" variant="outline" color={C.primary}>+ Ingrediente</Btn>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:8,marginBottom:8}}>
+              {["API / Ingrediente","Cantidad","Unidad",""].map(h=><div key={h} style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:"1px",textTransform:"uppercase",fontFamily:"sans-serif"}}>{h}</div>)}
+            </div>
+            {form.ingredientes.map((ing,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:8,marginBottom:8,alignItems:"center"}}>
+                <select value={ing.apiId} onChange={e=>updIng(i,"apiId",e.target.value)} style={{padding:"10px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:ing.apiId?C.dark:C.muted,fontSize:13,outline:"none",fontFamily:"sans-serif"}}>
+                  <option value="">Seleccionar API...</option>
+                  {apis.map(a=><option key={a.id} value={a.id}>{a.nombre}</option>)}
+                </select>
+                <input type="number" value={ing.cantidad} onChange={e=>updIng(i,"cantidad",e.target.value)} placeholder="0.00" style={{padding:"10px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.dark,fontSize:14,outline:"none",fontFamily:"sans-serif"}}/>
+                <select value={ing.unidad} onChange={e=>updIng(i,"unidad",e.target.value)} style={{padding:"10px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.dark,fontSize:13,outline:"none",fontFamily:"sans-serif"}}>
+                  {["g","mg","ml","u"].map(u=><option key={u}>{u}</option>)}
+                </select>
+                {form.ingredientes.length>1&&<button onClick={()=>remIng(i)} style={{padding:"10px 12px",background:C.redLight,border:`1px solid ${C.redBorder}`,borderRadius:8,color:C.red,cursor:"pointer",fontSize:13,fontFamily:"sans-serif"}}>✕</button>}
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:8}}>
+            <Btn onClick={()=>setModal(null)} variant="outline" color={C.muted}>Cancelar</Btn>
+            <Btn onClick={guardar} disabled={!form.nombre||!form.categoria||form.ingredientes.every(i=>!i.apiId)} color={C.primary} size="lg">
+              {modal==="nuevo"?"✅ Crear Fórmula":"✅ Guardar Cambios"}
+            </Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL CONFIRMAR ELIMINAR */}
+      {confirmarEliminar&&(
+        <Modal onClose={()=>setConfirmarEliminar(null)}>
+          <div style={{textAlign:"center",padding:"8px 0 16px"}}>
+            <div style={{fontSize:48,marginBottom:12}}>🗑️</div>
+            <div style={{fontSize:17,fontWeight:700,color:C.dark,fontFamily:"sans-serif",marginBottom:8}}>¿Eliminar esta fórmula?</div>
+            <div style={{fontSize:14,color:C.muted,fontFamily:"sans-serif",marginBottom:24}}><strong>{confirmarEliminar.nombre}</strong><br/>Esta acción no se puede deshacer.</div>
+            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+              <Btn onClick={()=>setConfirmarEliminar(null)} variant="outline" color={C.muted}>Cancelar</Btn>
+              <Btn onClick={()=>eliminar(confirmarEliminar.id)} color={C.red}>Sí, eliminar</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
 // ═══════════ MAIN ═══════════
 export default function App(){
   const [tab,setTab]=useState("dashboard");
   const [apis,setApis]=useState(APIS_INIT);
   const [historial,setHistorial]=useState(HISTORIAL_INIT);
-  const [formulas]=useState(FORMULAS_INIT);
+  const [formulas,setFormulas]=useState(FORMULAS_INIT);
   const criticos=apis.filter(a=>a.stock<a.min).length;
-  const NAV=[{id:"dashboard",icon:"📊",label:"Dashboard"},{id:"inventario",icon:"🧪",label:"Inventario"},{id:"preparar",icon:"⚗️",label:"Preparar Fórmula"},{id:"calcular",icon:"🧮",label:"Calculadora"},{id:"historial",icon:"📋",label:"Historial"}];
+  const NAV=[{id:"dashboard",icon:"📊",label:"Dashboard"},{id:"inventario",icon:"🧪",label:"Inventario"},{id:"preparar",icon:"⚗️",label:"Preparar Fórmula"},{id:"calcular",icon:"🧮",label:"Calculadora"},{id:"formulas",icon:"📝",label:"Gestión Fórmulas"},{id:"historial",icon:"📋",label:"Historial"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"sans-serif"}}>
       <div style={{background:C.dark,borderBottom:`3px solid ${C.primary}`}}>
@@ -633,6 +791,7 @@ export default function App(){
         {tab==="inventario"&&<Inventario apis={apis} setApis={setApis} historial={historial} setHistorial={setHistorial}/>}
         {tab==="preparar"&&<PrepararFormula apis={apis} setApis={setApis} historial={historial} setHistorial={setHistorial} formulas={formulas}/>}
         {tab==="calcular"&&<Calculadora formulas={formulas} apis={apis}/>}
+        {tab==="formulas"&&<GestionFormulas formulas={formulas} setFormulas={setFormulas} apis={apis}/>}
         {tab==="historial"&&<Historial historial={historial}/>}
       </div>
     </div>

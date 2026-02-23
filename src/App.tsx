@@ -136,9 +136,17 @@ const Inventario=({apis,setApis,historial,setHistorial})=>{
   const [statusFiltro,setStatusFiltro]=useState("Todos");
   const [modalRecibir,setModalRecibir]=useState(false);
   const [modalAjuste,setModalAjuste]=useState(null);
+  const [modalEditar,setModalEditar]=useState(null);
+  const [editForm,setEditForm]=useState({});
   const [nuevo,setNuevo]=useState({nombre:"",selId:"",cantidad:"",unidad:"g",min:"",proveedor:"",lote:"",recibo:"",vence:"",costo:"",cat:""});
   const [ajusteCant,setAjusteCant]=useState("");
   const [ajusteTipo,setAjusteTipo]=useState("entrada");
+
+  const abrirEditar=(a)=>{setEditForm({...a,costo:a.costo.toString(),min:a.min.toString(),stock:a.stock.toString()});setModalEditar(a);};
+  const guardarEdicion=()=>{
+    setApis(apis.map(a=>a.id===editForm.id?{...editForm,costo:parseFloat(editForm.costo)||0,min:parseFloat(editForm.min)||0,stock:parseFloat(editForm.stock)||0}:a));
+    setModalEditar(null);
+  };
 
   const categorias=["Todas",...new Set(apis.map(a=>a.cat))];
   const filtrados=useMemo(()=>apis.filter(a=>{
@@ -200,7 +208,7 @@ const Inventario=({apis,setApis,historial,setHistorial})=>{
               <td style={{padding:"13px 14px",fontSize:12,color:C.darkMid,fontFamily:"sans-serif"}}>{a.proveedor}</td>
               <td style={{padding:"13px 14px"}}><div style={{fontSize:11,color:C.darkMid,fontFamily:"sans-serif"}}>{a.lote}</div><div style={{fontSize:11,color:C.muted,fontFamily:"sans-serif"}}>Recibo: {a.recibo}</div><div style={{fontSize:11,color:new Date(a.vence)<new Date(Date.now()+90*24*60*60*1000)?C.orange:C.muted,fontFamily:"sans-serif"}}>Vence: {a.vence}</div></td>
               <td style={{padding:"13px 14px"}}><StatusBadge api={a}/></td>
-              <td style={{padding:"13px 14px"}}><Btn onClick={()=>{setModalAjuste(a);setAjusteTipo("entrada");setAjusteCant("");}} size="sm">Ajustar</Btn></td>
+              <td style={{padding:"13px 14px"}}><div style={{display:"flex",gap:6}}><Btn onClick={()=>abrirEditar(a)} size="sm" variant="outline" color={C.primary}>✏️</Btn><Btn onClick={()=>{setModalAjuste(a);setAjusteTipo("entrada");setAjusteCant("");}} size="sm">Ajustar</Btn></div></td>
             </tr>
           ))}</tbody>
         </table>
@@ -251,6 +259,43 @@ const Inventario=({apis,setApis,historial,setHistorial})=>{
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16}}>
             <Btn onClick={()=>setModalRecibir(false)} variant="outline" color={C.muted}>Cancelar</Btn>
             <Btn onClick={confirmarRecibo} disabled={!nuevo.cantidad||!nuevo.recibo||!nuevo.vence||(!nuevo.selId&&!nuevo.nombre)} color={C.green} size="lg">✅ Confirmar Recepción</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL EDITAR API */}
+      {modalEditar&&(
+        <Modal onClose={()=>setModalEditar(null)} wide>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div><div style={{fontSize:18,fontWeight:700,color:C.dark,fontFamily:"sans-serif"}}>✏️ Editar API / Ingrediente</div><div style={{fontSize:13,color:C.muted,fontFamily:"sans-serif",marginTop:4}}>Modifica cualquier campo — los cambios se aplican inmediatamente.</div></div>
+            <button onClick={()=>setModalEditar(null)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:C.muted}}>✕</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div style={{gridColumn:"1/-1"}}><FInput label="Nombre del API *" value={editForm.nombre||""} onChange={v=>setEditForm({...editForm,nombre:v})} placeholder="Hydroquinone USP" required/></div>
+            <FInput label="Categoría" value={editForm.cat||""} onChange={v=>setEditForm({...editForm,cat:v})} placeholder="Dermatológico"/>
+            <div>
+              <SLabel>Unidad</SLabel>
+              <select value={editForm.unidad||"g"} onChange={e=>setEditForm({...editForm,unidad:e.target.value})} style={{width:"100%",padding:"11px 14px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.dark,fontSize:14,outline:"none",fontFamily:"sans-serif",marginBottom:14}}>
+                {["g","mg","ml","kg","L","oz","u"].map(u=><option key={u}>{u}</option>)}
+              </select>
+            </div>
+            <div style={{gridColumn:"1/-1",height:1,background:C.border}}/>
+            <FInput label="Stock actual" value={editForm.stock||""} onChange={v=>setEditForm({...editForm,stock:v})} placeholder="0" type="number"/>
+            <FInput label="Stock mínimo (alerta)" value={editForm.min||""} onChange={v=>setEditForm({...editForm,min:v})} placeholder="20" type="number"/>
+            <FInput label="Costo por unidad ($)" value={editForm.costo||""} onChange={v=>setEditForm({...editForm,costo:v})} placeholder="0.00" type="number"/>
+            <FInput label="Proveedor / Suplidor" value={editForm.proveedor||""} onChange={v=>setEditForm({...editForm,proveedor:v})} placeholder="PCCA, Fagron..."/>
+            <FInput label="Número de lote" value={editForm.lote||""} onChange={v=>setEditForm({...editForm,lote:v})} placeholder="LOT-2025-001"/>
+            <FInput label="Fecha de recibo" value={editForm.recibo||""} onChange={v=>setEditForm({...editForm,recibo:v})} type="date"/>
+            <FInput label="Fecha de expiración" value={editForm.vence||""} onChange={v=>setEditForm({...editForm,vence:v})} type="date"/>
+          </div>
+          {editForm.stock&&editForm.min&&(
+            <div style={{padding:"12px 16px",background:parseFloat(editForm.stock)<parseFloat(editForm.min)?C.redLight:C.greenLight,borderRadius:10,marginTop:8,fontSize:13,fontFamily:"sans-serif",color:parseFloat(editForm.stock)<parseFloat(editForm.min)?C.red:C.green,fontWeight:600}}>
+              {parseFloat(editForm.stock)<parseFloat(editForm.min)?"⚠️ Stock por debajo del mínimo — aparecerá como CRÍTICO en el dashboard":"✅ Stock sobre el mínimo — estado OK"}
+            </div>
+          )}
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:16}}>
+            <Btn onClick={()=>setModalEditar(null)} variant="outline" color={C.muted}>Cancelar</Btn>
+            <Btn onClick={guardarEdicion} disabled={!editForm.nombre} color={C.primary} size="lg">✅ Guardar Cambios</Btn>
           </div>
         </Modal>
       )}
